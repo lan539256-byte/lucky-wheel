@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一乐店长幸运大转盘</title>
+<style>
+  :root{
+    --bg:#120a0c; --bg2:#1d1014; --panel:#20121a; --panel-2:#2a1720;
+    --gold:#f6c453; --gold-2:#ffdf9e; --red:#e2434f; --red-2:#ff6b74;
+    --ink:#fff6e8; --muted:#b99c93; --line:rgba(246,196,83,.22);
+    --shadow:0 18px 44px rgba(0,0,0,.55);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; color:var(--ink); font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 700px at 18% -10%, rgba(226,67,79,.28), transparent 60%),
+      radial-gradient(900px 600px at 100% 0%, rgba(246,196,83,.16), transparent 55%),
+      radial-gradient(900px 900px at 50% 120%, rgba(120,40,60,.35), transparent 60%),
+      var(--bg);
+    min-height:100vh; display:flex; flex-direction:column;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; opacity:.06; z-index:0;
+    background-image:repeating-linear-gradient(0deg, #fff 0 1px, transparent 1px 3px);
+  }
+  header{padding:22px 26px 8px; display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; position:relative; z-index:1}
+  .brand h1{
+    margin:0; font-size:clamp(22px,3.2vw,34px); letter-spacing:2px; font-weight:900;
+    background:linear-gradient(180deg,#fff2cf,#f6c453 55%,#e08b2a);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 2px 18px rgba(246,196,83,.25);
+  }
+  .brand p{margin:6px 0 0; color:var(--muted); font-size:13px; letter-spacing:1px}
+  .header-actions{margin-left:auto; display:flex; gap:10px; align-items:center}
+  .chip{
+    border:1px solid var(--line); background:rgba(255,255,255,.03); color:var(--muted);
+    border-radius:999px; padding:8px 14px; font-size:13px; cursor:pointer;
+    transition:.2s; user-select:none;
+  }
+  .chip:hover{color:var(--gold-2); border-color:rgba(246,196,83,.5); background:rgba(246,196,83,.08)}
+  .chip.on{color:#231204; background:linear-gradient(180deg,var(--gold-2),var(--gold)); border-color:transparent; font-weight:700}
+
+  main{flex:1; display:grid; grid-template-columns:250px minmax(0,1fr) 300px; gap:18px; padding:14px 26px 26px; align-items:start; position:relative; z-index:1}
+
+  /* ---------- level list ---------- */
+  .levels{
+    background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.015));
+    border:1px solid var(--line); border-radius:18px; padding:14px; box-shadow:var(--shadow);
+    max-height:calc(100vh - 140px); overflow:auto;
+  }
+  .levels h2{margin:2px 4px 10px; font-size:13px; color:var(--muted); letter-spacing:2px; font-weight:600}
+  .level-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+  .lv{
+    position:relative; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.03);
+    color:var(--ink); border-radius:12px; padding:9px 4px 7px; cursor:pointer; text-align:center;
+    transition:.18s; font-family:inherit;
+  }
+  .lv b{display:block; font-size:16px; line-height:1.1}
+  .lv small{display:block; font-size:10px; color:var(--muted); margin-top:3px; font-variant-numeric:tabular-nums}
+  .lv:hover{transform:translateY(-1px); border-color:rgba(246,196,83,.45); background:rgba(246,196,83,.08)}
+  .lv.active{
+    border-color:transparent; background:linear-gradient(180deg,var(--red-2),var(--red));
+    box-shadow:0 8px 22px rgba(226,67,79,.35); color:#fff;
+  }
+  .lv.active small{color:rgba(255,255,255,.85)}
+  .lv.empty{opacity:.42; cursor:not-allowed}
+  .lv .tag{position:absolute; top:-6px; right:-4px; font-size:9px; padding:1px 5px; border-radius:6px; background:var(--gold); color:#2a1406; font-weight:700}
+  .lv.general{grid-column:span 3; background:rgba(246,196,83,.06); border-color:rgba(246,196,83,.22)}
+  .lv.general.active{background:linear-gradient(180deg,var(--gold-2),var(--gold)); color:#2a1406}
+  .lv.general.active small{color:#5c3a10}
+
+  /* ---------- stage ---------- */
+  .stage{display:flex; flex-direction:column; align-items:center; gap:16px; min-width:0}
+  .stage-head{text-align:center}
+  .stage-head .lv-name{font-size:15px; color:var(--gold-2); letter-spacing:3px; font-weight:700}
+  .stage-head .lv-sub{font-size:12px; color:var(--muted); margin-top:4px}
+  .wheel-wrap{position:relative; width:min(560px, 52vh, 100%); aspect-ratio:1/1; margin-top:2px}
+  .wheel-wrap::after{
+    content:""; position:absolute; inset:-10px; border-radius:50%;
+    background:radial-gradient(closest-side, rgba(246,196,83,.12), transparent 70%);
+    filter:blur(8px); z-index:0; pointer-events:none;
+  }
+  canvas#wheel{position:relative; z-index:1; width:100%; height:100%; display:block; filter:drop-shadow(0 16px 30px rgba(0,0,0,.5))}
+  .pointer{
+    position:absolute; left:50%; top:-16px; transform:translateX(-50%); z-index:3; width:46px; height:64px;
+    filter:drop-shadow(0 6px 10px rgba(0,0,0,.55));
+  }
+  .hub-btn{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:2;
+    width:22%; aspect-ratio:1/1; border-radius:50%; border:none; cursor:pointer;
+    background:radial-gradient(circle at 35% 30%, #ffe9b8, #f6c453 45%, #c9871f 100%);
+    color:#3a1d06; font-weight:900; font-size:clamp(13px,1.6vw,18px); letter-spacing:2px;
+    box-shadow:0 0 0 6px rgba(18,10,12,.9), 0 0 0 8px rgba(246,196,83,.25), 0 12px 26px rgba(0,0,0,.5);
+    transition:.15s; font-family:inherit;
+  }
+  .hub-btn:hover{transform:translate(-50%,-50%) scale(1.05)}
+  .hub-btn:active{transform:translate(-50%,-50%) scale(.96)}
+  .hub-btn[disabled]{filter:grayscale(.5) brightness(.8); cursor:default}
+
+  .primary{
+    border:none; border-radius:999px; padding:14px 44px; font-size:17px; font-weight:800; letter-spacing:3px;
+    color:#2b1408; background:linear-gradient(180deg,#ffe7ae,var(--gold) 60%,#d98d20);
+    box-shadow:0 12px 26px rgba(246,196,83,.25), inset 0 1px 0 rgba(255,255,255,.6);
+    cursor:pointer; transition:.15s; font-family:inherit;
+  }
+  .primary:hover{transform:translateY(-1px); box-shadow:0 16px 30px rgba(246,196,83,.32)}
+  .primary:active{transform:translateY(1px)}
+  .primary[disabled]{opacity:.5; cursor:default; transform:none}
+  .hint{font-size:12px; color:var(--muted)}
+  kbd{background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); border-radius:6px; padding:1px 6px; font-size:11px}
+
+  /* ---------- result & history ---------- */
+  .side{display:flex; flex-direction:column; gap:16px; min-width:0}
+  .card{
+    background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015));
+    border:1px solid var(--line); border-radius:18px; padding:16px; box-shadow:var(--shadow);
+  }
+  .card h3{margin:0 0 12px; font-size:13px; letter-spacing:2px; color:var(--muted); font-weight:600; display:flex; align-items:center; gap:8px}
+  .card h3 .dot{width:7px;height:7px;border-radius:50%;background:var(--red-2);box-shadow:0 0 10px var(--red-2)}
+  #result{min-height:92px; display:flex; flex-direction:column; justify-content:center; gap:6px}
+  #result .lvline{font-size:11px; color:var(--gold); letter-spacing:2px}
+  #result .txt{font-size:clamp(18px,2vw,24px); font-weight:900; line-height:1.35; word-break:break-all}
+  #result .empty{color:var(--muted); font-size:13px; font-weight:400}
+  #result .pop{animation:pop .5s cubic-bezier(.2,.9,.3,1.4)}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+  .result-actions{display:flex; gap:8px; margin-top:12px}
+  .result-actions .chip{flex:1; text-align:center}
+  .history{max-height:340px; overflow:auto; display:flex; flex-direction:column; gap:8px}
+  .hitem{
+    display:flex; gap:10px; align-items:flex-start; padding:9px 10px; border-radius:12px;
+    background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.05);
+  }
+  .hitem .idx{font-size:11px; color:var(--muted); min-width:18px; padding-top:2px; font-variant-numeric:tabular-nums}
+  .hitem .h-lv{font-size:10px; color:var(--gold); letter-spacing:1px}
+  .hitem .h-txt{font-size:13px; line-height:1.4; word-break:break-all}
+  .history-empty{color:var(--muted); font-size:13px; padding:8px 2px}
+  footer{padding:0 26px 20px; color:var(--muted); font-size:12px; letter-spacing:1px; position:relative; z-index:1}
+  footer a{color:var(--gold-2); text-decoration:none}
+
+  @media (max-width:1180px){
+    main{grid-template-columns:210px minmax(0,1fr);}
+    .side{grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr; align-items:start}
+  }
+  @media (max-width:760px){
+    main{grid-template-columns:1fr; padding:10px 14px 20px}
+    .levels{max-height:none; order:2}
+    .stage{order:1}
+    .side{grid-template-columns:1fr}
+    .header-actions{margin-left:0}
+  }
+
+  /* ---------- actions row + options modal ---------- */
+  .stage-actions{display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:center}
+  .ghost{
+    border:1px solid rgba(246,196,83,.35); background:rgba(246,196,83,.06); color:var(--gold-2);
+    border-radius:999px; padding:12px 22px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit;
+    transition:.2s;
+  }
+  .ghost:hover{background:rgba(246,196,83,.14); border-color:rgba(246,196,83,.6); transform:translateY(-1px)}
+  .modal{position:fixed; inset:0; z-index:50; background:rgba(8,4,5,.72); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; padding:24px}
+  .modal[hidden]{display:none}
+  .modal-card{
+    width:min(900px, 96vw); max-height:84vh; display:flex; flex-direction:column;
+    background:linear-gradient(180deg,#221215,#150b0d); border:1px solid rgba(246,196,83,.28); border-radius:20px;
+    box-shadow:0 30px 80px rgba(0,0,0,.6); overflow:hidden;
+  }
+  .modal-head{display:flex; align-items:center; gap:12px; padding:16px 20px 12px; border-bottom:1px solid rgba(255,255,255,.07); flex-wrap:wrap}
+  .modal-head h3{margin:0; font-size:16px; letter-spacing:2px; color:var(--gold-2)}
+  .modal-head .muted{font-size:12px; color:var(--muted)}
+  .modal-head .spacer{flex:1}
+  .modal-head .chip{padding:6px 12px; font-size:12px}
+  .modal-search{margin:12px 20px 0; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:var(--ink); border-radius:10px; padding:10px 14px; font-size:14px; font-family:inherit; outline:none}
+  .modal-search:focus{border-color:rgba(246,196,83,.55)}
+  .opt-grid{padding:14px 20px 20px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(205px,1fr)); gap:8px}
+  .opt{display:flex; gap:8px; align-items:baseline; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:10px; padding:8px 10px; font-size:13px; line-height:1.5}
+  .opt-no{color:var(--muted); font-size:11px; min-width:2em; text-align:right; font-variant-numeric:tabular-nums; flex:none}
+  .opt-txt{color:var(--ink); word-break:break-all}
+  .opt-empty{grid-column:1/-1; text-align:center; color:var(--muted); padding:30px}
+  body.modal-open{overflow:hidden}
+
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>一乐店长幸运大转盘</h1>
+    <p>火影忍者手游 · 23 关挑战 · 共 <span id="totalCount">0</span> 个选项</p>
+  </div>
+  <div class="header-actions">
+    <button class="chip on" id="soundBtn" title="音效开关">🔊 音效</button>
+    <button class="chip" id="clearBtn">清空记录</button>
+  </div>
+</header>
+
+<main>
+  <aside class="levels">
+    <h2>选择关卡</h2>
+    <div class="level-grid" id="levelGrid"></div>
+  </aside>
+
+  <section class="stage">
+    <div class="stage-head">
+      <div class="lv-name" id="stageLevel">通用</div>
+      <div class="lv-sub" id="stageSub">文档开头列出的通用选项</div>
+    </div>
+    <div class="wheel-wrap">
+      <svg class="pointer" viewBox="0 0 46 64" aria-hidden="true">
+        <defs>
+          <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffe9b8"/><stop offset="1" stop-color="#d9821a"/>
+          </linearGradient>
+        </defs>
+        <path d="M23 62 L8 20 Q23 4 38 20 Z" fill="url(#pg)" stroke="#4a2408" stroke-width="2"/>
+        <circle cx="23" cy="20" r="5" fill="#4a2408" opacity=".85"/>
+      </svg>
+      <canvas id="wheel" aria-label="转盘"></canvas>
+      <button class="hub-btn" id="hubBtn">转</button>
+    </div>
+    <div class="stage-actions">
+      <button class="primary" id="spinBtn">开始抽取</button>
+      <button class="ghost" id="listBtn">查看本关选项</button>
+    </div>
+    <div class="hint">按 <kbd>空格</kbd> 也能抽 · 每关选项直接来自原文档</div>
+  </section>
+
+  <div class="side">
+    <div class="card">
+      <h3><span class="dot"></span>本次结果</h3>
+      <div id="result"><span class="empty">点击「开始抽取」转动转盘</span></div>
+      <div class="result-actions">
+        <button class="chip" id="againBtn">再抽一次</button>
+        <button class="chip" id="nextLevelBtn">下一关</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3><span class="dot"></span>抽取记录</h3>
+      <div class="history" id="history"><div class="history-empty">还没有记录</div></div>
+    </div>
+  </div>
+</main>
+
+<div class="modal" id="listModal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="listTitle">本关全部选项</h3>
+      <span class="muted" id="listCount"></span>
+      <span class="spacer"></span>
+      <button class="chip" id="listCopy">复制全部</button>
+      <button class="chip" id="listClose">关闭</button>
+    </div>
+    <input class="modal-search" id="listSearch" placeholder="搜索本关选项…" autocomplete="off">
+    <div class="opt-grid" id="listBody"></div>
+  </div>
+</div>
+
+<footer>
+  数据来源：一乐店长幸运大转盘（加了第23关版）.docx · <span id="footCount"></span>
+</footer>
+
+<script id="wheel-data" type="application/json">{"source":"一乐店长幸运大转盘.docx","pre":["输不退关发巴克2杯买一条命","C忍全随机","自选此关卡一张牌","B忍全随机","a忍全随机","穿三或赢直接进5小关。","S忍全随机","全随机","穿三或赢直接进5小关."],"levels":[{"level":1,"title":"第一关","entries":["穿三或赢直接进5小关.","冬日BC忍","奇拉比落风传BC忍","自选BC忍","BCC自选忍者","木叶三忍C忍","七夕BC忍","夏日BC忍","新佩恩六道BC忍","BCB自选忍者","男性B忍自选","穿三或赢直接进5小关","CBB自选忍者","穿三或赢直接进5小关","CBC自选忍者","咒印BC忍","忍者新秀BC忍","新春限定BC忍","小七班C忍","穿三或赢直接进5小关","穿三或赢直接进5小关","博人转BC忍","木叶三忍B忍","BBC自选忍者","穿三或赢直接进5小关","忍界大战BC忍","鹰小队BC忍","衣服服装BC忍","忍刀七人众BC忍","中秋BC忍","赛事BC忍","男性C忍自选","宗师BC忍","穿三或赢直接进5小关。","CCB自选忍者","青蛙小队","穿三或赢直接进5小关","女性C忍自选","十二小强C忍","人柱力BC忍","女性B忍自选","新春BC忍","漂泊BC忍","疾风传BC忍","BBB自选忍者","十二小强B忍","C忍自选","穿三或赢直接进5小关·","少年BC忍","穿三或赢直接进5小关，","CCC自选忍者","少女BC忍","佩恩六道BC忍","B忍自选","秽土转生BC忍","输不退关发巴克2杯买一条命","自选此关卡一张牌","自选此关卡一张牌."],"count":58},{"level":2,"title":"第二关","entries":["全随机自选通灵","自选忍者角色。","s忍全随机自选通灵密卷","sr级忍者自选","SAC全随机自选通灵密卷","b全随机自选通灵密卷","全随机自选通灵密卷~","忍者通灵密卷自选！","自选忍者","s忍全随机自选密卷","本命绝活小南","自选忍者","自选忍者","自选忍者","自选忍者","SAA全随机自选通灵密卷","秽土转生忍者","高招忍者自选、","前进3小关","多人切换忍者","小胖子红温没三丁次","漂泊元素忍者","神威难藏泪","b忍全随机自选通灵密卷","高招忍者自选.","BSS全随机自选通灵密卷","自选阵容，","高招s级忍者自选","高招忍者自选","蓝卷a级忍者自选","高招忍者自选","忍者通灵密卷自选、","全随机，","创业流角度全随机自选通灵密卷","自选阵容.","全随机.","自选阵容·","全随机通灵带蛇","侠客元素忍者","点券忍者自选","自选忍者。","全随机通灵带免费","s忍全随机~","拿捏弹幕.","s级木叶三忍","神威难藏泪","全随机自选通灵密卷·","点卷忍者自选。","ABC全随机自选通灵密卷","轮回眼忍者","自选忍者","saa自选忍者.","高招s自选","SBB全随机自选通灵密卷","养猪流b忍自选通灵密卷","c忍全随机自选密卷","自选忍者","s忍全随机，","sas自选忍者","神秘面具男","老玩家泪目袁世凯","忍者自选！","高招忍者自选，","高招a自选","本质高手阵容，","祈愿夺宝忍者自选","复制上把对手忍者","博人传忍者","全随机自选通灵密卷","自选忍者","自选忍者","双人忍者","自选忍者","自选忍者，","CBB全随机自选通灵密卷","想玩啥玩啥？","反向养猪流c忍自选通灵密卷","来个弹幕虐一下","自选忍者","二号位黑绝全随机自选通灵密卷","全随机通灵带蛤蟆","关闭特效全随机自选通灵密卷","BCA全随机自选通灵密卷","自选忍者·","黄色闪光","全随机自选密卷","CSS全随机自选通灵密卷","外星人","c忍自选","全随机自选通灵密卷","重做归来忍者","忍法帖自选忍者！","自选忍者","自选忍者角色.","saa自选忍者","sr忍者自选","asa自选忍者.","高招自选","高招自选","c忍全随机自选通灵密卷","拿捏弹幕.","忍者通灵密卷自选.","自选","CSA全随机自选通灵密卷","养猪流a忍自选通灵密卷","自选忍者角色！","想玩啥玩啥！","CAS全随机自选通灵密卷","飞雷神忍者","CBA全随机自选通灵密卷","a忍全随机！","点卷a级忍者自选.","犯困了玩把佐助","黑绝附身全随机自选通灵密卷","BCS全随机自选通灵密卷","忍法帖a级忍者自选","高招a级忍者自选","自选忍者","s级小七班","自选忍者","高招s级忍者自选","全随机通灵带怒鬼","sbc全随机自选通灵密卷","蓝卷忍者自选","自选忍者。","CAA全随机自选通灵密卷","自选忍者","想玩啥玩啥","a忍全随机~","全随机通灵带小尾兽","自选忍者","水门班b忍","自选","木叶保安","本质高手阵容","ASS全随机自选通灵密卷","疾风转忍者","夏日b忍","自选忍者","豚豚全随机","自选忍者","自选忍者~","模仿木叶的秋","SAB全随机自选通灵密卷","忍法帖自选忍者？","入目皆是琳","忍法帖忍者自选","s忍全随机·","b忍全随机自选密卷","ass自选忍者.","ASC全随机自选通灵密卷","a全随机自选通灵密卷","a忍全随机","自选a忍者","自选忍者","自选忍者","全随机","忍者自选.","自选忍者","自选忍者","s忍全随机","忍者通灵密卷自选。","黑绝保底全随机自选通灵密卷","自选忍者","a忍全随机.","BSA全随机自选通灵密卷","s忍全随机.","点卷自选","版本削弱忍者","十带少年团","全随机蛞蝓保底自选通灵密卷","asa自选忍者","自选忍者！","自选阵容","忍法帖自选忍者。","小七班.","b忍自选","b忍全随机自选通灵","忍法帖自选忍者，","sba全随机自选通灵密卷","BAS全随机自选通灵密卷","s忍自选","灌伤忍者","自选","忍者自选，","a级小七班","入目皆是琳","自选忍者","全随机密卷反怒御","自选阵容.","sr级忍者自选","忍法帖s级忍者自选","青蛙小队","自选忍者角色","养猪流c忍自选通灵密卷","模仿银色虞姬","自选阵容·","精良皮肤忍者","小七班","CBS全随机自选通灵密卷","忍者自选？","养猪流全忍自选通灵密卷","sas自选忍者.","点卷忍者自选","全随机绿毛虫","忍法帖a自选","全随机豚豚二号位","自选忍者","BAC全随机自选通灵密卷","a级忍者自选.","忍者通灵密卷自选","aas自选忍者.","ASB全随机自选通灵密卷","s全随机自选通灵密卷","忍法帖s自选","点卷a级忍者自选","全随机自选通灵密卷！","ABS全随机自选通灵密卷","c忍全随机自选通灵","全随机豚豚保底","全随机蛞蝓一号位","自选a忍者","老玩家泪目南天门","自选","点卷忍者自选，","自选s忍者","b忍自选.","s忍全随机自选通灵","晓组织","虚化忍者","下把穿三进5小关","自选阵容。","白眼忍者","点卷忍者自选.","ABB全随机自选通灵密卷","ACC全随机自选通灵密卷","忍法帖自选忍者.","自选忍者角色·","忍法帖自选","反向养猪流s忍","自选忍者角色~","BAA全随机自选通灵密卷","a级忍者自选","十周年送的忍者","忍者自选。","模仿银色虞姬.","BCC全随机自选通灵密卷","本质高手阵容","a忍全随机自选密卷","飞天忍者","自选忍者","蓝卷a级忍者自选.","想玩啥玩啥、","拿捏弹幕.","想玩啥玩啥.","双人忍者！","忍法帖a级忍者自选","ass自选忍者","SCA全随机自选通灵密卷","版本加强忍者","拿捏弹幕.","ssa自选忍者.","高招忍者自选！","CSB全随机自选通灵密卷","自选忍者","s忍全随机。","本质高手阵容。","BSC全随机自选通灵密卷","c级木叶三忍","自选s忍者","a忍全随机自选通灵","忍者自选","自选阵容~","自选忍者","点卷忍者自选！","自选阵容","全随机通灵带98","本质高手忍者","本质高手阵容","ACS全随机自选通灵密卷","全随机自选通灵密卷.","忍法帖自选忍者","SCC全随机自选通灵密卷","c全随机自选通灵密卷","a忍全随机自选通灵密卷","ACB全随机自选通灵密卷","神秘面具男","养猪流s忍","反向养猪流b忍自选通灵密卷","点卷忍者自选？","高招a级忍者自选.","忍法帖自选","自选阵容~","全随机两只小九尾","点卷忍者自选、","CAB全随机自选通灵密卷","全随机·","自选阵容！","双人忍者·","小七班","a忍全随机","自选","自选忍者","自选忍者","传说皮肤忍者","忍法帖s级忍者自选.","忍法帖自选忍者、","b级木叶三忍","a忍全随机·","自选忍者","aas自选忍者","本质高手阵容.","全随机","写轮眼忍者","ssa自选忍者","自选忍者","用忍刀的忍者","a忍自选","仙人模式忍者","红黄绿灯忍者","忍者自选、","点券忍者自选","s级忍者自选","s级忍者自选","自选阵容！","双人忍者.","SCB全随机自选通灵密卷","反向养猪流a忍自选通灵密卷","传承皮肤忍者"],"count":329},{"level":3,"title":"第三关","entries":["老雷骨架","秽土f4","斑泉奈","破面带土神威对决卡卡西","之水鼬","晓袍鼬鸡翅","穿三或赢直接进5小关","百机蝎近松千代","金角二代","晓朱鼬鸡翅","鸣人佐助","九尾链接鸣人永恒佐助","秽土斑破面","小李迈特凯","骨架团藏","秽土再不斩白","佐井井野","晓袍鼬晓蛇","老柱间扉间","忍战我爱罗小胡子","五影会谈的五影","斑带土","创立斑柱间","老三忍s","阿斯玛红","秽土长门秽土鼬","雷影纲手","老再不斩白","小南天道晓袍","自来也纲手","角度飞段","仙人自来也天道超","斑扉间","大蛇丸鼬","迪达拉蝎","迈特凯卡卡西","解斑破面","九尾链接水门鸣人","卡卡西再不斩","传说中的三忍","忍战凯卡卡西","死水破面","带土卡卡西","老三代团藏","鸣人雏田","猪鹿蝶","老扉间泉奈","阿飞迪达拉晓袍","老自来也天道","疾风夕颜","卑留呼一三二","佐助小樱","红夜之刃带土鼬","鬼鲛鼬","罗莎忍战我爱罗","雷影雏田","终章雏田舍人","角度飞段晓袍","穿三或赢直接进5小关·","鼬鬼鲛晓袍","雏田花火","佩恩小南","长门小南","漂泊再不斩白","秽土鼬仙人兜","蝎迪达拉晓袍","穿三或赢直接进5小关","晓朱鼬兄弟佐助","鸡翅老迪达拉","百战须佐鼬兄弟佐助","鹰佐老奇拉比","迪达拉大野木","晓创生角度飞段","秽土鼬永恒佐助","团藏老之水","穿三或赢直接进5小关","水门带土","天道超暴怒六尾","天道小南","老水门虎皮","白面具九尾查克拉鸣人","蛇皮兜白面具","老蝎老千代","秽土四影","老三代传说大蛇丸","老雷老奇拉比","鼬佐助","穿三或赢直接进5小关","纲手加藤段","疾风我爱罗老迪达拉","四不组合","飞段阿斯玛","桃式金式","输不退关发巴克2杯买一条命","晓组织","忍战雷忍战奇拉比","水门自来也","穿三或赢直接进5小关。","佐助大蛇丸","雷影玖辛奈","仙鸣老天道","金身水破面","新春之水鼬","百战水门虎皮","穿三或赢直接进5小关~","无忍战大野木","宁次天天","雷影小樱","金鸣忍战比","大蛇丸自来也","大蛇丸鼬","水门玖辛奈","晓创生蝎晓袍小南","角度卡卡西","青水青雷","袁飞日斩大蛇丸","斑柱间","穿三或赢直接进5小关，","穿三或赢直接进5小关","雷影黑土","五影斑骨架","纲手小樱","秽土柱间斑","晓创生迪达拉鼬","穿三或赢直接进5小关","鬼鲛奇拉比","自来也鸣人","半藏老三船","大蛇丸兜","自选此关卡一张牌","自选此关卡一张牌，","自选此关卡一张牌."],"count":132},{"level":4,"title":"第四关","entries":["七尾重明","穿三或赢直接进5小关","一尾守鹤","外道魔像","穿三或赢直接进5小关","五尾穆王","穿三或赢直接进5小关","四尾孙悟空","九尾","穿三或赢直接进5小关.","穿三或赢直接进5小关","二尾又旅","八尾鬼牛","六尾犀犬","输不退关发巴克2杯买一条命","零尾","三尾矶抚","自选此关卡一张牌","自选此关卡一张牌."],"count":19},{"level":5,"title":"第五关","entries":["穿三或赢直接进5小关","小南","角都","穿三或赢直接进5小关·","穿三或赢直接进5小关","佩恩","穿三或赢直接进5小关","宇智波鼬","蝎","输不退关发巴克2杯买一条命","大蛇丸","阿飞宇智波斑","迪达拉","飞段","自选此关卡一张牌.","长门","自选此关卡一张牌","绝黑绝","穿三或赢直接进5小关","干柿鬼鲛"],"count":20},{"level":6,"title":"第六关","entries":["水影","雷影","输不退关发巴克2杯买一条命","火影","穿三或赢直接进5小关","土影","风影"],"count":7},{"level":7,"title":"第七关","entries":["SSA随机自选秘卷通灵,","SSS随机自选秘卷通灵.","穿三或赢直接进5小关~","CBS随机自选秘卷通灵","AAA随机自选秘卷通灵.","a随机自选通灵秘卷","SBB随机自选秘卷通灵","AAS随机自选秘卷通灵.","SSS随机自选秘卷通灵","SAA随机自选秘卷通灵！","AAA随机自选秘卷通灵`","BSS随机自选秘卷通灵","BSA随机自选秘卷通灵","CSB随机自选秘卷通灵","SAA随机自选秘卷通灵,","SSS随机自选秘卷通灵！","s随机自选通灵秘卷、","s随机自选通灵秘卷，","CAA随机自选秘卷通灵","BAC随机自选秘卷通灵","SSA随机自选秘卷通灵！","BAA随机自选秘卷通灵","a随机自选通灵秘卷.","SAB随机自选秘卷通灵","ABC随机自选秘卷通灵","穿三或赢直接进5小关·","SBC随机自选秘卷通灵","SSS随机自选秘卷通灵,","s随机自选通灵秘卷.","ACB随机自选秘卷通灵","穿三或赢直接进5小关，","CAS随机自选秘卷通灵","AAS随机自选秘卷通灵,","AAA随机自选秘卷通灵,","SSS随机自选秘卷通灵`","ASS随机自选秘卷通灵,","a随机自选通灵秘卷","穿三或赢直接进5小关","CBA随机自选秘卷通灵","ACC随机自选秘卷通灵","BBB随机自选秘卷通灵","ABB随机自选秘卷通灵","CSS随机自选秘卷通灵","AAS随机自选秘卷通灵！","SAC随机自选秘卷通灵","ASC随机自选秘卷通灵","BCS随机自选秘卷通灵","ASS随机自选秘卷通灵`","AAS随机自选秘卷通灵`","SSA随机自选秘卷通灵.","ASS随机自选秘卷通灵","CSA随机自选秘卷通灵","AAA随机自选秘卷通灵","ASS随机自选秘卷通灵！","s随机自选通灵秘卷","ASS随机自选秘卷通灵.","AAA随机自选秘卷通灵！","BCA随机自选秘卷通灵","SAA随机自选秘卷通灵.","SCB随机自选秘卷通灵","CAB随机自选秘卷通灵","a随机自选通灵秘卷、","s随机自选通灵秘卷。","SCA随机自选秘卷通灵","穿三或赢直接进5小关。","s随机自选通灵秘卷！","CBB随机自选秘卷通灵","SBA随机自选秘卷通灵","CCC随机自选秘卷通灵","ACS随机自选秘卷通灵","SAA随机自选秘卷通灵`","s随机自选通灵秘卷？","ABS随机自选秘卷通灵","BCC随机自选秘卷通灵","BSC随机自选秘卷通灵","ASB随机自选秘卷通灵","SAA随机自选秘卷通灵","SSA随机自选秘卷通灵`","SCC随机自选秘卷通灵","BAS随机自选秘卷通灵","a随机自选通灵秘卷！","输不退关发巴克2杯买一条命","自选此关卡一张牌","自选此关卡一张牌，","自选此关卡一张牌."],"count":85},{"level":8,"title":"第八关","entries":["皮肤改变特效忍者皮肤","虚化机制忍者","输不退关发巴克2杯买一条命","斩杀机制忍者","技能带霸体机制忍者","须佐机制忍者","强化觉醒机制忍者","技能换位机制忍者","穿三或赢直接进5小关·","远程平a机制忍者","雷凯霸体机制忍者","皮肤改变技能机制忍者原皮","幻术表现机制忍者","穿三或赢直接进5小关","傀儡忍者","技能带检测索敌机制忍者","复活机制忍者","穿三或赢直接进5小关","技能带无敌机制忍者","双形态机制忍者","专属秘卷机制忍者","技能有组合技机制忍者","六豆机制忍者","技能充能忍者","特殊平a忍者","穿三或赢直接进5小关。","防反机制忍者","专属通灵机制忍者","特殊键位忍者","改变场景机制忍者","移动金刚体机制忍者","技能带抓取机制忍者","隐身机制忍者","奥义稳接技能机制忍者","闪光机制忍者","概率机制忍者","穿三或赢直接进5小关，","穿三或赢直接进5小关","能量条机制忍者","平a带抓取机制忍者","奥义中场大范围斩杀忍者","技能带负面效果机制忍者","穿三或赢直接进5小关~","陷阱机制忍者","双人机制忍者","皮肤改变技能机制忍者皮肤","分身机制忍者","召唤人或通灵机制忍者","皮肤改变特效忍者原皮","卡墙机制忍者","格挡机制忍者","穿三或赢直接进5小关","技能需要滑动轮盘忍者","技能带抓取机制忍者","对空弱势机制忍者","三技能忍者","主动替身忍者","弹墙上墙机制忍者","技能带子技能忍者","两段奥义机制忍者","多套技能机制忍者","奥义抓取不可替机制忍者","穿三或赢直接进5小关","自选此关卡一张牌","自选此关卡一张牌."],"count":65},{"level":9,"title":"第九关","entries":["输不退关发巴克2杯买一条命","托斯","赵美冥","枫","穿三或赢直接进5小关·","大和","结乃岩部","奇拉比","穿三或赢直接进5小关，","荒谷","犬冢牙","雨乃","海野伊鲁卡","刚子铁","穿三或赢直接进5小关，","宇智波带土","千代","金槌","穿三或赢直接进5小关","漩涡玖辛奈","土台","萨姆伊","纲手","伊豆野山葵","不知火玄间","希","黑绝","长门","千手柱间","紫杨花","鬼灯幻月","日向雏田","水木","矢仓","油女志乃","宇智波泉奈","秋道丁次","重吾","阿茨伊","手鞠","雨琉","左近右近","我爱罗","宇智波鼬","穿三或赢直接进五小关~","红莲","穿三或赢直接进5小关","大筒木舍人","秋道蝶蝶","蝎","丸星古介","伊势乌冬","赤土","地陆","小南","香鳞","山城青叶","卡鲁伊","穿三或赢直接进5小关","油女取根","不缘","通草野饵人","日向花火","大筒木金式","穿三或赢直接进5小关","不风","药师野乃宇","山中风","袁飞未来","金角","奈良鹿丸","林檎雨由利","野原琳","卑留呼","无犁甚八","鬼灯水月","穿三或赢直接进5小关。","穿三或赢直接进五小关!","三代风影","做弊来袭自选！","帕库拉","旗木卡卡西","漩涡鸣人","次郎坊","三船","森乃伊比喜","笕堇","壹叁","佐井","春野樱","栗霰串丸","漩涡博人","山中井阵","卯月夕颜","月光疾风","志村团藏","大筒木陶氏","袁飞木叶丸","大野木","穿三或赢直接进5小关","佩恩","艾","穿三或赢直接进5小关，","奈良鹿台","西瓜山河豚鬼","宇智波之水","狩","静香","列斗","再不斩","无","宇智波佐良娜","穿三或赢直接进5小关","迪达拉","惠比寿","大野木","艾三代目","穿三或赢直接进5小关","摩托伊","羽高","袁飞阿斯玛","飞段","阿三","不立土","角度","穿三或赢直接进五小关·","麻布伊","加藤段","大筒木浦式","宇智波佐助","半藏","穿三或赢直接进5小关，","自来也","尤鲁伊","二位由木人","萨克镫","长十郎","贰","日向宁次","阿飞","黑土","奥摩伊","穿三或赢直接进五小关","罗莎","夕日红","李洛克","鬼灯满月","迈特戴","黄土","秋道丁次","穿三或赢直接进5小关，","巳月","袁飞日斩","药师兜","鬼童丸","山中井野","梅塔尔李","干柿鬼鲛","勘九郎","波风水门","神月出云","达鲁伊","迈特凯","穿三或赢直接进5小关~","静音","绝","大蛇丸","御手洗红豆","白","青","君麻吕","汉","老紫","千手扉间","不动","风祭萌黄","天天","并足雷同","多由野","马基","自选此关卡一张牌","自选此关卡一张牌，","自选此关卡一张牌."],"count":183},{"level":10,"title":"第十关","entries":["输不退关发巴克2杯买一条命","第二十三页","穿三或赢直接进5小关","第七页","穿三或赢直接进5小关","第十五页","第二十八页","第二十九页","穿三或赢直接进5小关","第十页","第二页","第三页","第十四页","穿三或赢直接进5小关~","穿三或赢直接进5小关","第二十页","穿三或赢直接进5小关·","第十九页","第十二页","第十八页","第四页","第二十一页","第八页","穿三或赢直接进5小关","第二十六页","第十六页","第十一页","第十七页","第十三页","第一页","第二十七页","第九页","第五页","第二十二页","第二十五页","第六页","穿三或赢直接进5小关，","穿三或赢直接进5小关","第二十四页","穿三或赢直接进5小关","自选此关卡一张牌","自选此关卡一张牌."],"count":42},{"level":11,"title":"第十一关","entries":["免费送的点卷a忍。","s忍自选.","a忍女忍","本质高手阵容.","A忍随机自选通灵秘卷","忍法帖a","s忍自选","as忍自选，","ASS自选忍者","s忍自选","SSS自选忍者","a忍男忍","吃苦削弱废物忍者","SSA自选忍者","忍法帖s","S忍自选","穿三或赢直接进5小关","穿三或赢直接进5小关~","AAA自选忍者","as忍自选.","穿三或赢直接进5小关·","点卷a","免费送的点卷a忍","s忍女忍","AAS自选忍者","SAS自选忍者","as忍自选","阴间不吃苦阵容","本质高手阵容","s忍男忍","ASA自选忍者","a忍自选.","A忍自选","SAA自选忍者","S忍随机自选通灵秘卷","as忍自选、","输不退关发巴克2杯买一条命","自选此关卡一张牌","自选此关卡一张牌."],"count":39},{"level":12,"title":"第十二关","entries":["黑绝A忍随机秽土角度","穿三或赢直接进5小关","黑绝B忍随机秽土角度","黑绝C忍随机秽土角度","黑绝S忍随机秽土角度","黑绝随机秽土角度","黑绝C忍自选秽土角度","黑绝自选秽土角度","黑绝B忍自选秽土角度","穿三或赢直接进5小关·","黑绝A忍自选秽土角度","黑绝S忍自选秽土角度","穿三或赢直接进5小关~","输不退关发巴克2杯买一条命","自选此关卡一张牌"],"count":15},{"level":13,"title":"第十三关","entries":["神威","式纸之舞","千鸟","输不退关发巴克2杯买一条命","飞雷神之术","木遁","秘术虫","秘术骨头","仙人模式仙术","分身术影分身","穿三或赢直接进5小关·","八卦","雷遁之凯","尘遁","冰盾","须佐能乎","雷遁","沙遁","穿三或赢直接进5小关","雷切","岚遁","月读","轮回眼","磁遁","起爆粘土","土遁","别天神","通灵术","怪力","穿三或赢直接进5小关~","牙通牙","万象天引","倍化之术","傀儡术","天照","大蛇役使术","做弊来袭自选","地怨虞","百豪之术","影子模仿术","通灵术蛤蟆","写轮眼","忍具","查克拉刀","水遁","穿三或赢直接进5小关。","封印术","水龙弹之术","伊邪那歧","超兽伪画","咒术死司凭血","八门遁甲","白眼","忍刀七人众忍刀","风遁","雾隐之术","豪火球之术","幻术","穿三或赢直接进5小关，","火遁","心转身","螺旋丸","尾兽玉","自选此关卡一张牌","自选此关卡一张牌."],"count":65},{"level":14,"title":"第十四关","entries":["输退十关发巴克一杯","穿三或赢直接进5小关"],"count":2},{"level":15,"title":"第十五关复制","entries":["玩第五关玩法","玩第四关玩法","玩第十一关玩法","玩第九关玩法","玩第二十关玩法","玩第十关玩法","玩第二关玩法","玩第十五关玩法","玩第十二关玩法","玩第一关玩法","玩第二十一关玩法","玩第十八关玩法","玩第七关玩法","玩第十四关玩法","玩第十三关玩法","玩第十七关玩法","玩第六关玩法","玩第三关玩法","玩第十九关玩法","玩第八关玩法","输不退关发巴克2杯买一条命","玩第二十二关玩法"],"count":22},{"level":16,"title":"第十六关 轮回","entries":["输不退关发巴克2杯买一条命","穿三或赢直接进5小关","大筒木一族","音隐大蛇丸一族","云隐艾一族","宇智波一族","山中一族","犬冢一族","志村一族","风隐傀儡一族","风隐罗莎一族","日向一族","穿三或赢直接进5小关·","穿三或赢直接进5小关","土隐大野木一族","秋道一族","千手一族","穿三或赢直接进5小关~","旗木一族","鬼灯一族","袁飞一族","药师一族","雪之一族","辉夜一族","不立土一族","漩涡一族","奈良一族","油女一族","迈特一族","自选此关卡一张牌"],"count":30},{"level":17,"title":"第十七关","entries":["夏日忍者","运动系列忍者","高招A忍","漂泊忍者","穿三或赢直接进5小关","七夕忍者","新春忍者","高招忍者","忍法帖A忍","忍法帖S忍","穿三或赢直接进5小关","妖怪忍者","普通招募","组织兑换忍者","穿三或赢直接进5小关~","侠隐忍者","穿三或赢直接进5小关·","高招S忍","忍法帖忍者","祈愿夺宝忍者","蓝卷忍者","绝密宝匣忍者","战区赛事忍者","点卷忍者","神驹忍者","输不退关发巴克2杯买一条命","自选此关卡一张牌"],"count":27},{"level":18,"title":"第十八关","entries":["穿三或赢直接进5小关","策划蛤蟆广","穿三或赢直接进5小关","策划丁座","策划千代","穿三或赢直接进5小关~","策划大和","策划小李","策划志乃","策划鹿丸","策划花火","策划赤丸","策划滑铲怪","策划蛤蟆龙","策划蛞蝓","策划重吾","策划丁次","穿三或赢直接进5小关·","策划羽衣","策划宁次","输不退关发巴克2杯买一条命","策划奇拉比","策划熊猫","策划猿罗","自选此关卡一张牌"],"count":25},{"level":19,"title":"第十九关","entries":["2018年忍者","2025年忍者","穿三或赢直接进5小关·","2016年忍者","做弊来袭自选","2023年忍者","2019年忍者","2020年忍者","2022年忍者","2024年忍者","2026年忍者","2021年忍者","穿三或赢直接进5小关~","穿三或赢直接进5小关","2017年忍者","输不退关发巴克2杯买一条命"],"count":16},{"level":20,"title":"第二十关","entries":["输不退关发巴克2杯买一条命","岩隐村","铁之国","云隐村","音隐村","雨隐村","外星村","雾隐村","木叶村","穿三或赢直接进5小关","沙隐村","自选此关卡一张牌"],"count":12},{"level":21,"title":"第二十一关","entries":["S忍自选","自选","A忍自选","B忍自选","C忍自选"],"count":5},{"level":22,"title":"第二十二关","entries":["只能使用平A","只能使用1技能","只能使用2技能","只能使用3技能","只能使用1技能和2技能","只能使用通灵","只能使用秘卷","只能使用表情","不能使用平A","不能使用1技能","不能使用2技能","不能使用3技能","不能使用替身","不能使用通灵","不能使用秘卷","输不退关，发巴克两杯买一条命","穿三或赢进5小关"],"count":17},{"level":23,"title":"第二十三关","entries":[],"count":0}],"total_entries":1224}</script>
+<script>
+(function(){
+  "use strict";
+  const DATA = JSON.parse(document.getElementById('wheel-data').textContent);
+  const TABS = [{key:'pre', level:0, title:'通用', tag:'', entries:DATA.pre, count:DATA.pre.length}]
+    .concat(DATA.levels.map(lv => {
+      const suffix = String(lv.title || '').replace(/^第[一二三四五六七八九十两]+关/, '').trim();
+      return {key:'L'+lv.level, level:lv.level, title:'第'+lv.level+'关', subtitle:suffix,
+              tag: suffix.indexOf('复制') >= 0 ? '复制' : (suffix ? '轮回' : ''),
+              entries:lv.entries, count:lv.count};
+    }));
+  const total = DATA.total_entries;
+  document.getElementById('totalCount').textContent = total;
+  document.getElementById('footCount').textContent = '共 ' + DATA.levels.length + ' 关、' + total + ' 个选项';
+
+  const COLORS = ['#e2434f','#f6c453','#3f8f7d','#c96b3a','#8957a8','#d8a03c','#4a7fb5','#b5445f',
+                  '#5aa0a0','#c98a2c','#7a6bb5','#a63d4b','#3d6f9e','#bf6a94','#8c8f3f','#d06d3a'];
+  function luminance(hex){
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return 0.299*r + 0.587*g + 0.114*b;
+  }
+  const $ = s => document.querySelector(s);
+  const grid = $('#levelGrid'), canvas = $('#wheel'), ctx = canvas.getContext('2d');
+  const stageLevel = $('#stageLevel'), stageSub = $('#stageSub');
+  const resultBox = $('#result'), historyBox = $('#history');
+  const spinBtn = $('#spinBtn'), hubBtn = $('#hubBtn'), soundBtn = $('#soundBtn');
+  const STORE_KEY = 'yile-wheel-v1';
+
+  let curTab = TABS[0];
+  let rotation = -Math.PI/2;
+  let spinning = false;
+  let soundOn = true;
+  let audioCtx = null;
+  let history = [];
+  let lastTick = -1;
+  let cssSize = 560;
+
+  /* ---------- persistence ---------- */
+  function load(){
+    try{
+      const raw = localStorage.getItem(STORE_KEY);
+      if(raw){
+        const s = JSON.parse(raw);
+        if(Array.isArray(s.history)) history = s.history.slice(0, 200);
+        if(typeof s.soundOn === 'boolean') soundOn = s.soundOn;
+        const found = TABS.find(t => t.key === s.tabKey);
+        if(found) curTab = found;
+      }
+    }catch(e){}
+  }
+  function save(){
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify({history:history.slice(0,200), soundOn, tabKey:curTab.key})); }catch(e){}
+  }
+
+  /* ---------- UI: levels ---------- */
+  function buildGrid(){
+    grid.innerHTML = '';
+    // 通用
+    const g = document.createElement('button');
+    g.className = 'lv general' + (curTab.key==='pre' ? ' active' : '');
+    g.innerHTML = '<b>通用</b><small>' + DATA.pre.length + ' 项</small>';
+    g.addEventListener('click', () => selectTab(TABS[0]));
+    grid.appendChild(g);
+
+    TABS.slice(1).forEach(t => {
+      const b = document.createElement('button');
+      const empty = t.count === 0;
+      b.className = 'lv' + (t.key===curTab.key ? ' active' : '') + (empty ? ' empty' : '');
+      b.innerHTML = '<b>' + t.level + '</b><small>' + (empty ? '无选项' : t.count + ' 项') + '</small>'
+        + (t.tag ? '<span class="tag">' + t.tag + '</span>' : '');
+      if(empty){ b.title = '原文档中该关没有列出选项'; }
+      else b.addEventListener('click', () => selectTab(t));
+      grid.appendChild(b);
+    });
+  }
+
+  function selectTab(t){
+    if(t.count === 0){ return; }
+    curTab = t;
+    buildGrid();
+    stageLevel.textContent = t.level === 0 ? '通用' : ('第 ' + t.level + ' 关');
+    stageSub.textContent = t.level === 0
+      ? '文档开头列出的通用选项 · ' + t.count + ' 项'
+      : (t.tag ? t.tag + '关 · ' : '') + t.count + ' 项' + (t.count > 32 ? ' · 选项较多，仅显示扇区' : '');
+    resultBox.innerHTML = '<span class="empty">点击「开始抽取」转动转盘</span>';
+    rotation = -Math.PI/2;
+    draw();
+    save();
+  }
+
+  /* ---------- geometry ---------- */
+  function resize(){
+    const wrap = canvas.parentElement;
+    const rect = wrap.getBoundingClientRect();
+    cssSize = Math.max(220, Math.min(rect.width, rect.height || rect.width));
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.round(cssSize * dpr);
+    canvas.height = Math.round(cssSize * dpr);
+    draw();
+  }
+
+  function wheelRadius(){ return cssSize/2 - 16; }
+
+  function draw(){
+    const n = curTab.entries.length;
+    const R = wheelRadius();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    const cx = cssSize/2, cy = cssSize/2;
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // rim
+    ctx.beginPath(); ctx.arc(0,0,R+7,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(246,196,83,.16)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0,0,R+2,0,Math.PI*2);
+    ctx.strokeStyle = 'rgba(246,196,83,.55)'; ctx.lineWidth = 3; ctx.stroke();
+
+    ctx.rotate(rotation);
+
+    if(n === 0){
+      ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2);
+      ctx.fillStyle = '#291319'; ctx.fill();
+    } else {
+      const seg = Math.PI*2/n;
+      for(let i=0;i<n;i++){
+        const a0 = i*seg, a1 = a0+seg;
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R,a0,a1); ctx.closePath();
+        ctx.fillStyle = COLORS[i % COLORS.length];
+        ctx.globalAlpha = (i % 2 === 0) ? .92 : .78;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        if(n <= 32){
+          ctx.strokeStyle = 'rgba(18,10,12,.35)'; ctx.lineWidth = 1; ctx.stroke();
+        }
+      }
+      // labels
+      if(n <= 32){
+        const hub = R*0.21;
+        const inner = hub + 18;
+        const maxW = R - inner - 12;
+        for(let i=0;i<n;i++){
+          const mid = i*seg + seg/2;
+          let label = curTab.entries[i];
+          if(!label) continue;
+          const norm = (((rotation + mid) % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+          const flip = norm > Math.PI/2 && norm < Math.PI*1.5;
+          let fs = n <= 12 ? R*0.052 : (n <= 20 ? R*0.038 : R*0.030);
+          fs = Math.max(10, Math.min(19, Math.round(fs)));
+          ctx.save();
+          ctx.rotate(flip ? mid + Math.PI : mid);
+          ctx.font = '800 ' + fs + 'px "Microsoft YaHei", "PingFang SC", sans-serif';
+          while(fs > 9 && ctx.measureText(label).width > maxW){
+            fs -= 1; ctx.font = '800 ' + fs + 'px "Microsoft YaHei", "PingFang SC", sans-serif';
+          }
+          while(label.length > 2 && ctx.measureText(label).width > maxW){
+            label = label.slice(0, -2) + '…';
+          }
+          const bright = luminance(COLORS[i % COLORS.length]) > 150;
+          ctx.textAlign = flip ? 'right' : 'left';
+          ctx.textBaseline = 'middle';
+          if(bright){
+            ctx.fillStyle = 'rgba(34,16,10,.95)';
+            ctx.fillText(label, flip ? -inner : inner, 0);
+          } else {
+            ctx.fillStyle = 'rgba(255,248,235,.96)';
+            ctx.lineWidth = 2.4;
+            ctx.strokeStyle = 'rgba(20,10,8,.55)';
+            ctx.strokeText(label, flip ? -inner : inner, 0);
+            ctx.fillText(label, flip ? -inner : inner, 0);
+          }
+          ctx.restore();
+        }
+      } else {
+        // many sectors: subtle tick ring
+        ctx.strokeStyle = 'rgba(255,240,220,.10)'; ctx.lineWidth = 1;
+        for(let i=0;i<n;i+=Math.ceil(n/120)){
+          const a = i*Math.PI*2/n;
+          ctx.beginPath(); ctx.moveTo(Math.cos(a)*(R-10), Math.sin(a)*(R-10)); ctx.lineTo(Math.cos(a)*R, Math.sin(a)*R); ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+
+    // hub circle drawn by CSS button; small rim accent
+    ctx.save(); ctx.translate(cx, cy);
+    if(n > 32){
+      const txt = n + ' 项';
+      const fs = Math.round(R*0.075);
+      ctx.font = '800 ' + fs + 'px "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const tw = ctx.measureText(txt).width;
+      const padX = fs*0.6, ph = fs*1.9, py = R*0.33;
+      ctx.fillStyle = 'rgba(18,10,12,.72)';
+      ctx.beginPath();
+      if(ctx.roundRect){ ctx.roundRect(-tw/2 - padX, py - ph/2, tw + padX*2, ph, ph/2); }
+      else { ctx.rect(-tw/2 - padX, py - ph/2, tw + padX*2, ph); }
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,246,232,.95)';
+      ctx.fillText(txt, 0, py + 1);
+    }
+    ctx.restore();
+  }
+
+  /* ---------- sound ---------- */
+  function tick(){
+    if(!soundOn) return;
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const t = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.type = 'triangle'; osc.frequency.value = 1500 + Math.random()*250;
+      gain.gain.setValueAtTime(0.06, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + 0.05);
+    }catch(e){}
+  }
+  function fanfare(){
+    if(!soundOn) return;
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const t0 = audioCtx.currentTime;
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+        osc.type = 'sine'; osc.frequency.value = f;
+        const t = t0 + i*0.09;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(t); osc.stop(t + 0.55);
+      });
+    }catch(e){}
+  }
+
+  /* ---------- spin ---------- */
+  function spin(){
+    if(spinning || curTab.entries.length === 0) return;
+    spinning = true;
+    spinBtn.disabled = true; hubBtn.disabled = true;
+    resultBox.innerHTML = '<span class="empty">转盘转动中…</span>';
+    const n = curTab.entries.length;
+    const seg = Math.PI*2/n;
+    const idx = Math.floor(Math.random()*n);
+    const jitter = (Math.random() - 0.5) * seg * 0.55;
+    const base = -Math.PI/2 - (idx + 0.5)*seg + jitter;
+    let target = base;
+    const turns = 5 + Math.floor(Math.random()*3);
+    while(target < rotation + turns*Math.PI*2) target += Math.PI*2;
+
+    const start = rotation;
+    const delta = target - start;
+    const dur = (location.search.indexOf('fast') >= 0 ? 900 : 4600) + Math.random()*1100;
+    const t0 = performance.now();
+    lastTick = -1;
+
+    function frame(now){
+      const p = Math.min(1, (now - t0)/dur);
+      const e = 1 - Math.pow(1 - p, 4);
+      rotation = start + delta*e;
+      draw();
+      if(n <= 120){
+        const sector = Math.floor(((-Math.PI/2 - rotation + Math.PI*4) % (Math.PI*2)) / seg);
+        if(sector !== lastTick){ lastTick = sector; tick(); }
+      } else {
+        if(Math.floor(now/45) !== lastTick){ lastTick = Math.floor(now/45); tick(); }
+      }
+      if(p < 1){ requestAnimationFrame(frame); }
+      else { finish(idx); }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function finish(idx){
+    spinning = false;
+    spinBtn.disabled = false; hubBtn.disabled = false;
+    const text = curTab.entries[idx];
+    const lvLabel = curTab.level === 0 ? '通用' : ('第 ' + curTab.level + ' 关');
+    resultBox.innerHTML = '<div class="lvline">' + lvLabel + ' · 结果</div>'
+      + '<div class="txt pop">' + escapeHtml(text) + '</div>';
+    history.unshift({ lv: curTab.level, lvLabel, text, ts: Date.now() });
+    history = history.slice(0, 200);
+    renderHistory();
+    save();
+    fanfare();
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderHistory(){
+    if(!history.length){ historyBox.innerHTML = '<div class="history-empty">还没有记录</div>'; return; }
+    historyBox.innerHTML = history.map((h, i) =>
+      '<div class="hitem"><div class="idx">' + (i+1) + '</div><div><div class="h-lv">' + h.lvLabel + '</div>'
+      + '<div class="h-txt">' + escapeHtml(h.text) + '</div></div></div>').join('');
+  }
+
+  /* ---------- events ---------- */
+  spinBtn.addEventListener('click', spin);
+  hubBtn.addEventListener('click', spin);
+  $('#againBtn').addEventListener('click', spin);
+  $('#nextLevelBtn').addEventListener('click', () => {
+    const i = TABS.indexOf(curTab);
+    for(let k = 1; k <= TABS.length; k++){
+      const t = TABS[(i + k) % TABS.length];
+      if(t.count > 0){ selectTab(t); return; }
+    }
+  });
+  soundBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    soundBtn.classList.toggle('on', soundOn);
+    soundBtn.textContent = soundOn ? '🔊 音效' : '🔇 静音';
+    save();
+  });
+  $('#clearBtn').addEventListener('click', () => {
+    history = []; renderHistory(); save();
+    resultBox.innerHTML = '<span class="empty">点击「开始抽取」转动转盘</span>';
+  });
+  /* ---------- options viewer ---------- */
+  const listModal = $('#listModal'), listBody = $('#listBody'), listTitle = $('#listTitle'),
+        listCountEl = $('#listCount'), listSearch = $('#listSearch');
+  let listEntries = [];
+
+  function esc(s){
+    return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+
+  function renderList(){
+    const q = listSearch.value.trim().toLowerCase();
+    const rows = [];
+    listEntries.forEach((t, i) => {
+      if(!q || String(t).toLowerCase().indexOf(q) >= 0) rows.push({ t: t, i: i });
+    });
+    listCountEl.textContent = listEntries.length + ' 项' + (q ? ' · 匹配 ' + rows.length : '');
+    listBody.innerHTML = rows.length
+      ? rows.map(r => '<div class="opt"><span class="opt-no">' + (r.i + 1) + '</span><span class="opt-txt">' + esc(r.t) + '</span></div>').join('')
+      : '<div class="opt-empty">没有匹配的选项</div>';
+  }
+
+  function openList(){
+    listEntries = curTab.entries.slice();
+    listTitle.textContent = (curTab.level === 0 ? '通用' : '第 ' + curTab.level + ' 关') + ' · 全部选项';
+    listSearch.value = '';
+    renderList();
+    listModal.hidden = false;
+    document.body.classList.add('modal-open');
+    setTimeout(() => listSearch.focus(), 30);
+  }
+
+  function closeList(){
+    listModal.hidden = true;
+    document.body.classList.remove('modal-open');
+  }
+
+  function fallbackCopy(text, done){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(e){}
+    document.body.removeChild(ta);
+    done();
+  }
+
+  $('#listBtn').addEventListener('click', openList);
+  $('#listClose').addEventListener('click', closeList);
+  listModal.addEventListener('click', e => { if(e.target === listModal) closeList(); });
+  listSearch.addEventListener('input', renderList);
+  $('#listCopy').addEventListener('click', () => {
+    const text = listEntries.map((t, i) => (i + 1) + '. ' + t).join('\n');
+    const btn = $('#listCopy'), old = btn.textContent;
+    const done = () => { btn.textContent = '已复制 ✓'; setTimeout(() => { btn.textContent = old; }, 1200); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+    } else fallbackCopy(text, done);
+  });
+
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && !listModal.hidden){ closeList(); return; }
+    if(e.code === 'Space' && !e.repeat && listModal.hidden){ e.preventDefault(); spin(); }
+  });
+  window.addEventListener('resize', resize);
+
+  /* ---------- boot ---------- */
+  load();
+  soundBtn.classList.toggle('on', soundOn);
+  soundBtn.textContent = soundOn ? '🔊 音效' : '🔇 静音';
+  buildGrid();
+  stageLevel.textContent = curTab.level === 0 ? '通用' : ('第 ' + curTab.level + ' 关');
+  stageSub.textContent = curTab.level === 0 ? '文档开头列出的通用选项 · ' + curTab.count + ' 项'
+    : (curTab.tag ? curTab.tag + '关 · ' : '') + curTab.count + ' 项';
+  renderHistory();
+  resize();
+  /* ---------- deep link / demo: ?level=9&auto=1 | ?demo=3 ---------- */
+  try{
+    const q = new URLSearchParams(location.search);
+    const want = q.get('level');
+    if(want){
+      const t = TABS.find(x => String(x.level) === want);
+      if(t && t.count > 0) selectTab(t);
+    }
+    const demo = q.get('demo');
+    if(demo !== null && !isNaN(+demo) && curTab.count > 0){
+      const k = ((+demo % curTab.count) + curTab.count) % curTab.count;
+      setTimeout(() => finish(k), 500);
+    }
+    if(q.get('auto')) setTimeout(() => spin(), 350);
+    if(q.get('list')) setTimeout(openList, 400);
+  } catch(e){ /* ignore */ }
+})();
+</script>
+</body>
+</html>
